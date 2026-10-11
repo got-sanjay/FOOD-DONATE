@@ -188,6 +188,11 @@ export function NgoSelectionView({ pickup, region, foodType, quantity, quantityU
           donationId={donationId}
           pickup={pickup}
           region={region}
+          latitude={latitude}
+          longitude={longitude}
+          donorName={donorName}
+          donorContact={donorContact}
+          donorNotes={donorNotes}
           foodType={foodType}
           quantity={quantity}
           quantityUnit={quantityUnit}

@@ -7,7 +7,14 @@ const scryptAsync = promisify(scrypt)
 export const NGO_SESSION_COOKIE = 'foodrescue_ngo_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
-export type AuthenticatedNgo = { id: string; name: string; region: string; availability: 'available' | 'busy' }
+export type AuthenticatedNgo = {
+  id: string
+  name: string
+  region: string
+  availability: 'available' | 'busy'
+  latitude?: number | null
+  longitude?: number | null
+}
 
 function sessionSecret() {
   const configured = process.env.NGO_SESSION_SECRET
@@ -71,7 +78,16 @@ export async function getAuthenticatedNgo(): Promise<AuthenticatedNgo | null> {
   if (!id) return null
   const ngo = await prisma.ngoAccount.findUnique({
     where: { id },
-    select: { id: true, name: true, region: true, availability: true, isActive: true, reviewStatus: true },
+    select: {
+      id: true,
+      name: true,
+      region: true,
+      availability: true,
+      isActive: true,
+      reviewStatus: true,
+      latitude: true,
+      longitude: true,
+    },
   })
   if (!ngo?.isActive || ngo.reviewStatus !== 'approved') return null
   return {
@@ -79,6 +95,8 @@ export async function getAuthenticatedNgo(): Promise<AuthenticatedNgo | null> {
     name: ngo.name,
     region: ngo.region,
     availability: ngo.availability === 'busy' ? 'busy' : 'available',
+    latitude: ngo.latitude,
+    longitude: ngo.longitude,
   }
 }
 

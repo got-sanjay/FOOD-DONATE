@@ -19,10 +19,14 @@ model Donation {
   status        String              @default("broadcasting")
   selectedNgoId String?
   region        String              @default("Unassigned")
-  donorName     String?
-  donorContact  String?
-  donorNotes    String?
-  createdAt     DateTime            @default(now())
+  donorName       String?
+  donorContact    String?
+  donorNotes      String?
+  pickupOtp       String?
+  otpVerified     Boolean             @default(false)
+  completionPhoto String?
+  greetingsSent   Boolean             @default(false)
+  createdAt       DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   declines      NgoRequestDecline[]
   items         DonationItem[]

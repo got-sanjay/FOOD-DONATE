@@ -1,7 +1,26 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, BellRing, CheckCircle2, Clock3, MapPin, PackageCheck, PauseCircle, RefreshCw, Truck, UtensilsCrossed, X } from 'lucide-react'
+import {
+  Bell,
+  BellRing,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  Image as ImageIcon,
+  KeyRound,
+  Mail,
+  MapPin,
+  MessageCircle,
+  PackageCheck,
+  PauseCircle,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Truck,
+  UtensilsCrossed,
+  X,
+} from 'lucide-react'
 import { formatExpiry } from '@/lib/utils'
 import type { DonationFoodItem } from '@/frontend/models/donation/donation.types'
 
@@ -20,6 +39,10 @@ type DonorRequest = {
   donorName?: string | null
   donorContact?: string | null
   donorNotes?: string | null
+  pickupOtp?: string | null
+  otpVerified?: boolean
+  completionPhoto?: string | null
+  greetingsSent?: boolean
 }
 
 type AssignedRequest = DonorRequest & { status: 'accepted' | 'in_progress' | 'completed' }
@@ -48,9 +71,42 @@ export function NgoDashboardView({
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
   const knownRequestIds = useRef<Set<string> | null>(null)
 
+  // OTP Verification Modal
+  const [otpModalRequest, setOtpModalRequest] = useState<AssignedRequest | null>(null)
+  const [enteredOtp, setEnteredOtp] = useState('')
+  const [otpError, setOtpError] = useState('')
+
+  // Complete Delivery & Greetings Modal
+  const [completeModalRequest, setCompleteModalRequest] = useState<AssignedRequest | null>(null)
+  const [selectedPhoto, setSelectedPhoto] = useState(
+    'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&auto=format&fit=crop&q=80',
+  )
+  const [customPhoto, setCustomPhoto] = useState('')
+
   useEffect(() => {
     if ('Notification' in window) setPermission(Notification.permission)
   }, [])
+
+function playNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime)
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12)
+    gain.gain.setValueAtTime(0.3, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.45)
+  } catch {
+    // Ignore audio autoplay restrictions
+  }
+}
 
   const loadRequests = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true)
@@ -67,21 +123,43 @@ export function NgoDashboardView({
       if (result.availability === 'available' || result.availability === 'busy') setAvailability(result.availability)
       setAssignedRequests((result.assignedRequests ?? []) as AssignedRequest[])
       const nextIds = new Set(nextRequests.map((request) => request.id))
+
+      // Update browser tab title to alert NGO
+      if (nextRequests.length > 0) {
+        document.title = `(${nextRequests.length}) 🔔 New Donor Request - FoodRescue`
+      } else {
+        document.title = 'NGO Dashboard · FoodRescue'
+      }
+
       if (knownRequestIds.current) {
         const newlyAvailable = nextRequests.filter((request) => !knownRequestIds.current?.has(request.id))
         if (newlyAvailable.length > 0) {
           const newest = newlyAvailable[0]
           const itemsText = newest.foodItems.map((item) => `${item.foodType}, ${item.quantity} ${item.quantityUnit}, use by ${formatExpiry(item.expiresAt)}`).join('; ')
-          const message = `New donation: ${itemsText} at ${newest.pickupAddress}. Expected expiry: ${formatExpiry(newest.expiresAt)}.`
+          const message = `🔔 New donation request: ${itemsText} at ${newest.pickupAddress}. Expected expiry: ${formatExpiry(newest.expiresAt)}.`
           setNotice(message)
+          playNotificationSound()
+
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('New FoodRescue donor request', {
-              body: `${itemsText} · ${newest.pickupAddress} · expires ${formatExpiry(newest.expiresAt)}`,
-              tag: newest.id,
-            })
+            try {
+              new Notification('🔔 New FoodRescue Donor Request!', {
+                body: `${itemsText} · ${newest.pickupAddress}`,
+                icon: '/favicon.ico',
+                tag: newest.id,
+              })
+            } catch {
+              // Ignore notification constructor errors
+            }
           }
         }
+      } else if (nextRequests.length > 0) {
+        // First load with existing requests
+        const newest = nextRequests[0]
+        const itemsText = newest.foodItems.map((item) => `${item.foodType}, ${item.quantity} ${item.quantityUnit}`).join('; ')
+        setNotice(`🔔 ${nextRequests.length} active donor broadcast waiting: ${itemsText} at ${newest.pickupAddress}.`)
+        playNotificationSound()
       }
+
       knownRequestIds.current = nextIds
       setRequests(nextRequests)
       setError('')
@@ -171,22 +249,51 @@ export function NgoDashboardView({
     }
   }
 
-  async function updatePickupStatus(request: AssignedRequest, status: 'in_progress' | 'completed') {
+  async function updatePickupStatus(
+    request: AssignedRequest,
+    status: 'in_progress' | 'completed',
+    options?: { otp?: string; completionPhoto?: string; greetingsSent?: boolean },
+  ) {
     setUpdatingStatusId(request.id)
     setError('')
     try {
       const response = await fetch(`/api/ngo-requests/${request.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          otp: options?.otp,
+          completionPhoto: options?.completionPhoto,
+          greetingsSent: options?.greetingsSent,
+        }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Could not update pickup status.')
-      setAssignedRequests((current) => current.map((item) => item.id === request.id ? { ...item, status } : item))
-      setAcceptedMessage(status === 'completed' ? `${request.foodType} pickup marked completed.` : `${request.foodType} pickup is now in progress.`)
+      setAssignedRequests((current) =>
+        current.map((item) =>
+          item.id === request.id
+            ? {
+                ...item,
+                status,
+                otpVerified: status === 'in_progress' ? true : item.otpVerified,
+                completionPhoto: options?.completionPhoto ?? item.completionPhoto,
+                greetingsSent: options?.greetingsSent ?? item.greetingsSent,
+              }
+            : item,
+        ),
+      )
+      setAcceptedMessage(
+        status === 'completed'
+          ? `🎉 Food rescue completed! Thank-you greeting confirmed for ${request.donorName || 'donor'}.`
+          : `✓ OTP Verified! ${request.foodType} pickup is now in progress.`,
+      )
+      return true
     } catch (statusError) {
-      setError(statusError instanceof Error ? statusError.message : 'Could not update pickup status.')
+      const msg = statusError instanceof Error ? statusError.message : 'Could not update pickup status.'
+      setError(msg)
+      if (options?.otp) setOtpError(msg)
       await loadRequests(true)
+      return false
     } finally {
       setUpdatingStatusId(null)
     }
@@ -395,16 +502,78 @@ export function NgoDashboardView({
                     </div>
                   )}
                   <p className="mt-3 text-xs text-muted-foreground">Soonest expiry: {formatExpiry(request.expiresAt)}</p>
-                  {!isCompleted && (
+
+                  {/* ACTION BUTTONS ACCORDING TO ORDER STAGE */}
+                  {request.status === 'accepted' && (
                     <button
                       type="button"
-                      onClick={() => void updatePickupStatus(request, isInProgress ? 'completed' : 'in_progress')}
-                      disabled={updatingStatusId !== null}
-                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-5 py-3.5 text-sm font-extrabold text-background transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => {
+                        setOtpModalRequest(request)
+                        setEnteredOtp('')
+                        setOtpError('')
+                      }}
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-extrabold text-white shadow-sm transition-all hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40"
                     >
-                      {isInProgress ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <Truck className="size-4" aria-hidden="true" />}
-                      {updatingStatusId === request.id ? 'Updating status...' : isInProgress ? 'Mark pickup completed' : 'Start pickup'}
+                      <KeyRound className="size-4" aria-hidden="true" />
+                      Verify Donor OTP & Start Pickup
                     </button>
+                  )}
+
+                  {isInProgress && (
+                    <button
+                      type="button"
+                      onClick={() => setCompleteModalRequest(request)}
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-5 py-3.5 text-sm font-extrabold text-background shadow-sm transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40"
+                    >
+                      <Camera className="size-4" aria-hidden="true" />
+                      Complete Delivery & Send Greetings
+                    </button>
+                  )}
+
+                  {isCompleted && (
+                    <div className="mt-4 rounded-2xl border border-brand-green/30 bg-brand-green/5 p-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-brand-green">
+                          <CheckCircle2 className="size-4" />
+                          Delivery Completed & Rescued
+                        </span>
+                        {request.otpVerified && (
+                          <span className="rounded-full bg-brand-green/15 px-2 py-0.5 text-[10px] font-bold text-brand-green">
+                            OTP Verified
+                          </span>
+                        )}
+                      </div>
+
+                      {request.completionPhoto && (
+                        <div className="mt-2.5 overflow-hidden rounded-xl border border-border">
+                          <img
+                            src={request.completionPhoto}
+                            alt="Distribution Proof"
+                            className="h-32 w-full object-cover"
+                          />
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex gap-2">
+                        <a
+                          href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(
+                            (request.donorContact || '').replace(/[^0-9+]/g, '')
+                          )}&text=${encodeURIComponent(
+                            `🌟 *Food Donation Successfully Rescued & Distributed!* 🍽️\n\nDear ${
+                              request.donorName || 'Donor'
+                            },\nYour surplus food (${request.foodType}, ${request.quantity} ${
+                              request.quantityUnit
+                            }) was safely distributed by *${ngoName}* to families in need!\n\nTogether we saved food and fed hungry people. Thank you for your generosity! 💚`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90"
+                        >
+                          <MessageCircle className="size-3.5" />
+                          Send WhatsApp Greeting
+                        </a>
+                      </div>
+                    </div>
                   )}
                 </article>
               )
@@ -412,6 +581,250 @@ export function NgoDashboardView({
           </div>
         )}
       </section>
+
+      {/* 1. OTP VERIFICATION MODAL */}
+      {otpModalRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="otp-title"
+            className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                  <KeyRound className="size-5" />
+                </span>
+                <div>
+                  <h3 id="otp-title" className="text-lg font-extrabold tracking-tight">
+                    Verify Donor Pickup OTP
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Order: {otpModalRequest.foodType}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOtpModalRequest(null)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-muted/60 p-3.5 text-xs">
+              <p className="font-semibold text-foreground">
+                📍 {otpModalRequest.pickupAddress}
+              </p>
+              {otpModalRequest.donorName && (
+                <p className="mt-1 text-muted-foreground">
+                  Donor: <strong>{otpModalRequest.donorName}</strong>{' '}
+                  {otpModalRequest.donorContact && `(${otpModalRequest.donorContact})`}
+                </p>
+              )}
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!enteredOtp.trim()) {
+                  setOtpError('Please enter the 4-digit OTP provided by the donor.')
+                  return
+                }
+                const ok = await updatePickupStatus(otpModalRequest, 'in_progress', { otp: enteredOtp.trim() })
+                if (ok) setOtpModalRequest(null)
+              }}
+              className="mt-5 space-y-4"
+            >
+              <div>
+                <label htmlFor="donor-otp-input" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Enter 4-Digit Pickup OTP
+                </label>
+                <input
+                  id="donor-otp-input"
+                  type="text"
+                  maxLength={6}
+                  placeholder="e.g. 4829"
+                  value={enteredOtp}
+                  onChange={(e) => {
+                    setEnteredOtp(e.target.value)
+                    setOtpError('')
+                  }}
+                  autoFocus
+                  className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3.5 text-center font-mono text-2xl font-black tracking-widest text-foreground focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              {otpError && (
+                <p role="alert" className="text-center text-xs font-bold text-destructive">
+                  {otpError}
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOtpModalRequest(null)}
+                  className="flex-1 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingStatusId !== null}
+                  className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {updatingStatusId ? 'Verifying...' : 'Verify & Start Pickup'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. COMPLETE DELIVERY & SEND GREETINGS MODAL */}
+      {completeModalRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="greetings-title"
+            className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex size-10 items-center justify-center rounded-2xl bg-brand-green/15 text-brand-green">
+                  <Sparkles className="size-5" />
+                </span>
+                <div>
+                  <h3 id="greetings-title" className="text-lg font-extrabold tracking-tight">
+                    Complete Rescue & Send Greetings
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Order: {completeModalRequest.foodType}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompleteModalRequest(null)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                  Distribution Proof Photo
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      label: 'Hot Meals Served',
+                      url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&auto=format&fit=crop&q=80',
+                    },
+                    {
+                      label: 'Food Packets Handover',
+                      url: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=600&auto=format&fit=crop&q=80',
+                    },
+                    {
+                      label: 'Community Feeding',
+                      url: 'https://images.unsplash.com/photo-1578357078586-491adf1aa5ba?w=600&auto=format&fit=crop&q=80',
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() => setSelectedPhoto(preset.url)}
+                      className={`relative overflow-hidden rounded-xl border-2 transition-all text-left ${
+                        selectedPhoto === preset.url
+                          ? 'border-brand-green shadow-md ring-2 ring-brand-green/40'
+                          : 'border-border opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={preset.url} alt={preset.label} className="h-16 w-full object-cover" />
+                      <span className="block p-1 text-[10px] font-bold truncate bg-background/90 text-center">
+                        {preset.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* GREETING PREVIEW */}
+              <div className="rounded-2xl border border-brand-green/30 bg-brand-green/5 p-4 text-xs">
+                <p className="font-extrabold uppercase tracking-wider text-brand-green text-[10px]">
+                  Donor Greeting Message Preview
+                </p>
+                <p className="mt-1.5 text-foreground leading-relaxed">
+                  &ldquo;🌟 <strong>Dear {completeModalRequest.donorName || 'Generous Donor'}</strong>, thank you! Your surplus food donation of {completeModalRequest.foodType} ({completeModalRequest.quantity} {completeModalRequest.quantityUnit}) was safely collected from {completeModalRequest.pickupAddress} and distributed by <strong>{ngoName}</strong> to families in need! 💚&rdquo;
+                </p>
+              </div>
+
+              {/* ACTION LINKS: WHATSAPP & EMAIL */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <a
+                  href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(
+                    (completeModalRequest.donorContact || '').replace(/[^0-9+]/g, '')
+                  )}&text=${encodeURIComponent(
+                    `🌟 *Thank You For Your Food Donation!* 🍽️\n\nDear ${
+                      completeModalRequest.donorName || 'Donor'
+                    },\nYour surplus food donation (${completeModalRequest.foodType}, ${
+                      completeModalRequest.quantity
+                    } ${completeModalRequest.quantityUnit}) has been safely collected and distributed by *${ngoName}* to families in need!\n\n📸 Photo Proof: ${selectedPhoto}\n\nTogether we saved food and fed hungry people. Thank you for making a difference! 💚`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-4 py-3 text-xs font-bold text-white shadow-sm hover:brightness-95 transition-all"
+                >
+                  <MessageCircle className="size-4" />
+                  Send via WhatsApp
+                </a>
+
+                {completeModalRequest.donorContact?.includes('@') && (
+                  <a
+                    href={`mailto:${completeModalRequest.donorContact}?subject=${encodeURIComponent(
+                      `Food Donation Delivered! Thank You from ${ngoName}`
+                    )}&body=${encodeURIComponent(
+                      `Dear ${completeModalRequest.donorName || 'Donor'},\n\nYour donation of ${
+                        completeModalRequest.foodType
+                      } has been safely picked up and distributed by ${ngoName}!\n\nView photo: ${selectedPhoto}\n\nThank you for your generosity!`
+                    )}`}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-4 py-3 text-xs font-bold text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Mail className="size-4" />
+                    Send via Email
+                  </a>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-border flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCompleteModalRequest(null)}
+                  className="flex-1 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-muted-foreground hover:bg-muted"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await updatePickupStatus(completeModalRequest, 'completed', {
+                      completionPhoto: selectedPhoto,
+                      greetingsSent: true,
+                    })
+                    if (ok) setCompleteModalRequest(null)
+                  }}
+                  disabled={updatingStatusId !== null}
+                  className="flex-1 rounded-xl bg-brand-green px-4 py-3 text-sm font-extrabold text-white shadow-sm hover:brightness-95 disabled:opacity-50"
+                >
+                  {updatingStatusId ? 'Completing...' : 'Confirm & Complete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

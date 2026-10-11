@@ -47,28 +47,49 @@ export class DonationModel {
   static async getStatus(id: string) {
     const donation = await db.donation.findUnique({
       where: { id },
-      select: { status: true, selectedNgoId: true },
+      select: {
+        status: true,
+        selectedNgoId: true,
+        pickupOtp: true,
+        otpVerified: true,
+        completionPhoto: true,
+        greetingsSent: true,
+        donorName: true,
+        donorContact: true,
+        donorNotes: true,
+      },
     })
     if (!donation) return null
 
     const selectedNgo = donation.selectedNgoId
       ? await db.ngoAccount.findUnique({
           where: { id: donation.selectedNgoId },
-          select: { name: true },
+          select: { name: true, phone: true, email: true },
         })
       : null
 
     return {
       status: donation.status,
       selectedNgoName: selectedNgo?.name ?? null,
+      selectedNgoPhone: selectedNgo?.phone ?? null,
+      selectedNgoEmail: selectedNgo?.email ?? null,
+      pickupOtp: donation.pickupOtp,
+      otpVerified: donation.otpVerified,
+      completionPhoto: donation.completionPhoto,
+      greetingsSent: donation.greetingsSent,
+      donorName: donation.donorName,
+      donorContact: donation.donorContact,
+      donorNotes: donation.donorNotes,
     }
   }
 
   static async createDonation(data: CreateDonationData) {
     const { items, ...donationData } = data
+    const pickupOtp = Math.floor(1000 + Math.random() * 9000).toString()
     return db.donation.create({
       data: {
         ...donationData,
+        pickupOtp,
         status: 'broadcasting',
         items: {
           create: items,
@@ -81,11 +102,17 @@ export class DonationModel {
   }
 
   static async updateStatus(id: string, status: string, selectedNgoId?: string) {
+    const existing = await db.donation.findUnique({
+      where: { id },
+      select: { pickupOtp: true },
+    })
+    const pickupOtp = existing?.pickupOtp ?? Math.floor(1000 + Math.random() * 9000).toString()
+
     return db.donation.update({
       where: { id },
       data: {
         status,
-        ...(status === 'accepted' && selectedNgoId ? { selectedNgoId } : {}),
+        ...(status === 'accepted' && selectedNgoId ? { selectedNgoId, pickupOtp } : {}),
       },
     })
   }
@@ -154,12 +181,29 @@ export class DonationModel {
         updatedAt: { gt: cutoff },
         declines: { none: { ngoId } },
       },
-      select: { id: true, region: true },
+      select: {
+        id: true,
+        region: true,
+        pickupAddress: true,
+        latitude: true,
+        longitude: true,
+        selectedNgoId: true,
+      },
     })
   }
 
   static async acceptBroadcast(id: string, ngoId: string) {
     const cutoff = new Date(Date.now() - BROADCAST_WINDOW_MS)
+    const existing = await db.donation.findFirst({
+      where: {
+        id,
+        status: 'broadcasting',
+        updatedAt: { gt: cutoff },
+      },
+      select: { pickupOtp: true },
+    })
+    const pickupOtp = existing?.pickupOtp ?? Math.floor(1000 + Math.random() * 9000).toString()
+
     return db.donation.updateMany({
       where: {
         id,
@@ -169,19 +213,51 @@ export class DonationModel {
       data: {
         status: 'accepted',
         selectedNgoId: ngoId,
+        pickupOtp,
       },
     })
   }
 
-  static async updatePickupStatus(id: string, ngoId: string, status: 'in_progress' | 'completed') {
-    const previousStatus = status === 'in_progress' ? 'accepted' : 'in_progress'
-    return db.donation.updateMany({
+  static async updatePickupStatus(
+    id: string,
+    ngoId: string,
+    status: 'in_progress' | 'completed',
+    options?: {
+      otp?: string | null
+      completionPhoto?: string | null
+      greetingsSent?: boolean
+    },
+  ) {
+    const donation = await db.donation.findFirst({
+      where: { id, selectedNgoId: ngoId },
+      select: { id: true, status: true, pickupOtp: true },
+    })
+    if (!donation) {
+      return { count: 0, error: 'Pickup order not found or not assigned to your NGO.' }
+    }
+
+    // When advancing from accepted -> in_progress, verify the donor's OTP
+    if (status === 'in_progress') {
+      if (donation.pickupOtp && options?.otp) {
+        if (options.otp.trim() !== donation.pickupOtp.trim()) {
+          return { count: 0, error: 'Invalid Donor OTP! Please enter the correct 4-digit code provided by the donor.' }
+        }
+      }
+    }
+
+    const updated = await db.donation.updateMany({
       where: {
         id,
         selectedNgoId: ngoId,
-        status: previousStatus,
       },
-      data: { status },
+      data: {
+        status,
+        ...(status === 'in_progress' ? { otpVerified: true } : {}),
+        ...(options?.completionPhoto ? { completionPhoto: options.completionPhoto } : {}),
+        ...(typeof options?.greetingsSent === 'boolean' ? { greetingsSent: options.greetingsSent } : {}),
+      },
     })
+
+    return { count: updated.count, error: null }
   }
 }

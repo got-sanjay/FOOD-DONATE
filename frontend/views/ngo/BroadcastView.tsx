@@ -5,11 +5,16 @@ import dynamic from 'next/dynamic'
 import {
   ArrowLeft,
   BadgeCheck,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   FastForward,
+  KeyRound,
   MapPin,
   RotateCcw,
+  Share2,
+  Sparkles,
   Timer,
   X,
   Zap,
@@ -45,6 +50,11 @@ type BroadcastViewProps = {
   donationId: string
   pickup: string
   region: string
+  latitude?: number | null
+  longitude?: number | null
+  donorName?: string | null
+  donorContact?: string | null
+  donorNotes?: string | null
   foodType: string
   quantity: number
   quantityUnit: string
@@ -55,12 +65,33 @@ type BroadcastViewProps = {
   onClose: () => void
 }
 
-export function BroadcastView({ donationId, pickup, region, foodType, quantity, quantityUnit, foodItems, expiresAt, broadcastStartedAt: initialBroadcastStartedAt, ngos, onClose }: BroadcastViewProps) {
+export function BroadcastView({
+  donationId,
+  pickup,
+  region,
+  latitude,
+  longitude,
+  donorName,
+  donorContact,
+  donorNotes,
+  foodType,
+  quantity,
+  quantityUnit,
+  foodItems,
+  expiresAt,
+  broadcastStartedAt: initialBroadcastStartedAt,
+  ngos,
+  onClose,
+}: BroadcastViewProps) {
   const [phase, setPhase] = useState<BroadcastPhase>('broadcasting')
   const [deadline, setDeadline] = useState(() => broadcastDeadline(initialBroadcastStartedAt))
   const [now, setNow] = useState(() => Date.now())
   const [acceptedId, setAcceptedId] = useState<string | null>(null)
   const [acceptedNgoName, setAcceptedNgoName] = useState<string | null>(null)
+  const [pickupOtp, setPickupOtp] = useState<string | null>(null)
+  const [otpVerified, setOtpVerified] = useState<boolean>(false)
+  const [completionPhoto, setCompletionPhoto] = useState<string | null>(null)
+  const [greetingsSent, setGreetingsSent] = useState<boolean>(false)
   const [persistenceError, setPersistenceError] = useState('')
 
   const saveStatus = useCallback(async (status: string, selectedNgoId?: string) => {
@@ -99,8 +130,20 @@ export function BroadcastView({ donationId, pickup, region, foodType, quantity, 
       try {
         const response = await fetch(`/api/donations/${donationId}/status`, { cache: 'no-store' })
         if (!response.ok) return
-        const result = (await response.json()) as { status?: string; selectedNgoName?: string | null }
+        const result = (await response.json()) as {
+          status?: string
+          selectedNgoName?: string | null
+          pickupOtp?: string | null
+          otpVerified?: boolean
+          completionPhoto?: string | null
+          greetingsSent?: boolean
+        }
         if (!active) return
+        if (typeof result.pickupOtp === 'string') setPickupOtp(result.pickupOtp)
+        if (typeof result.otpVerified === 'boolean') setOtpVerified(result.otpVerified)
+        if (typeof result.completionPhoto === 'string') setCompletionPhoto(result.completionPhoto)
+        if (typeof result.greetingsSent === 'boolean') setGreetingsSent(result.greetingsSent)
+
         if (result.status === 'accepted' || result.status === 'in_progress' || result.status === 'completed') {
           const matchedNgo = ngos.find((ngo) => ngo.name === result.selectedNgoName)
           const fallbackNgo = ngos.find((ngo) => ngo.status === 'available') ?? ngos[0]
@@ -209,7 +252,18 @@ export function BroadcastView({ donationId, pickup, region, foodType, quantity, 
 
       <div className="relative flex-1">
         <div className="absolute inset-0 isolate">
-          <BroadcastMap phase={phase} acceptedId={acceptedId} ngos={ngos} />
+          <BroadcastMap
+            phase={phase}
+            acceptedId={acceptedId}
+            ngos={ngos}
+            pickupAddress={pickup}
+            donorName={donorName}
+            donorContact={donorContact}
+            donorNotes={donorNotes}
+            donorLat={latitude}
+            donorLng={longitude}
+            onSelectNgo={acceptBy}
+          />
         </div>
 
         <section
@@ -246,6 +300,11 @@ export function BroadcastView({ donationId, pickup, region, foodType, quantity, 
               distanceKm={accepted.distanceKm}
               pickupMins={accepted.pickupMins}
               status={phase}
+              pickupOtp={pickupOtp}
+              otpVerified={otpVerified}
+              completionPhoto={completionPhoto}
+              donorName={donorName}
+              pickupAddress={pickup}
               onDone={onClose}
             />
           ) : (
@@ -355,18 +414,46 @@ type AcceptedPanelProps = {
   distanceKm: number
   pickupMins: number
   status: 'accepted' | 'in_progress' | 'completed'
+  pickupOtp?: string | null
+  otpVerified?: boolean
+  completionPhoto?: string | null
+  donorName?: string | null
+  pickupAddress?: string
   onDone: () => void
 }
 
-function AcceptedPanel({ name, address, distanceKm, pickupMins, status, onDone }: AcceptedPanelProps) {
+function AcceptedPanel({
+  name,
+  address,
+  distanceKm,
+  pickupMins,
+  status,
+  pickupOtp,
+  otpVerified,
+  completionPhoto,
+  donorName,
+  pickupAddress,
+  onDone,
+}: AcceptedPanelProps) {
+  const [copiedOtp, setCopiedOtp] = useState(false)
   const statusLabel = status === 'completed' ? 'Pickup completed' : status === 'in_progress' ? 'Pickup in progress' : 'Accepted'
+  const isCompleted = status === 'completed'
+
+  const handleCopyOtp = () => {
+    if (pickupOtp) {
+      void navigator.clipboard.writeText(pickupOtp)
+      setCopiedOtp(true)
+      setTimeout(() => setCopiedOtp(false), 2500)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3 rounded-2xl border-2 border-brand-blue bg-brand-blue/[0.04] p-4">
         <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-brand-blue" aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-base font-extrabold leading-snug">
-            Accepted by {name} - {pickupMins} mins away
+            {isCompleted ? `Rescued by ${name}` : `Accepted by ${name} - ${pickupMins} mins away`}
           </p>
           <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <BadgeCheck className="size-3.5 text-brand-blue" aria-hidden="true" />
@@ -374,6 +461,80 @@ function AcceptedPanel({ name, address, distanceKm, pickupMins, status, onDone }
           </p>
         </div>
       </div>
+
+      {/* SECURE PICKUP VERIFICATION OTP (FOR DONOR) */}
+      {!isCompleted && pickupOtp && (
+        <div className="rounded-2xl border-2 border-emerald-500/80 bg-emerald-500/10 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+              <KeyRound className="size-4 text-emerald-600" aria-hidden="true" />
+              Pickup Handover OTP
+            </div>
+            <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+              {otpVerified ? '✓ Verified' : 'Share on arrival'}
+            </span>
+          </div>
+
+          <div className="my-2.5 flex items-center justify-between rounded-xl border border-emerald-500/20 bg-background/95 px-4 py-3 shadow-inner">
+            <span className="font-mono text-3xl font-black tracking-widest text-emerald-600 dark:text-emerald-400">
+              {pickupOtp}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyOtp}
+              className="flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors"
+            >
+              {copiedOtp ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+              <span>{copiedOtp ? 'Copied' : 'Copy'}</span>
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Please share this <strong>4-digit OTP</strong> with the <strong>{name}</strong> pickup team when they arrive to verify collection.
+          </p>
+        </div>
+      )}
+
+      {/* COMPLETED GREETINGS & DISTRIBUTION PHOTO PROOF */}
+      {isCompleted && (
+        <div className="rounded-2xl border-2 border-brand-green/80 bg-brand-green/10 p-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-5 text-amber-500" aria-hidden="true" />
+            <p className="text-base font-extrabold text-foreground">
+              Food Rescued & Distributed!
+            </p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+            Dear {donorName || 'Generous Donor'}, thank you! <strong>{name}</strong> has safely delivered your surplus food to families in need.
+          </p>
+
+          {completionPhoto ? (
+            <div className="mt-3 overflow-hidden rounded-xl border border-border shadow-sm">
+              <img src={completionPhoto} alt="Distribution proof" className="h-44 w-full object-cover" />
+              <div className="bg-background/95 px-3 py-1.5 text-center text-[11px] font-semibold text-brand-green">
+                📸 Verified Distribution Photo Proof
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl border border-dashed border-brand-green/40 bg-brand-green/5 p-3 text-center text-xs text-brand-green font-medium">
+              💚 Food delivery verified! Greetings sent to donor with distribution confirmation.
+            </div>
+          )}
+
+          <div className="mt-3.5 flex gap-2">
+            <a
+              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                `🌟 Our surplus food donation was safely collected and distributed by ${name}! Together we saved food and fed people in need with FoodRescue. 💚`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-3.5 py-3 text-xs font-bold text-white shadow-sm hover:brightness-95 transition-all"
+            >
+              <Share2 className="size-3.5" aria-hidden="true" />
+              Share WhatsApp Greeting
+            </a>
+          </div>
+        </div>
+      )}
 
       <dl className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-muted/60 p-3">
@@ -383,14 +544,16 @@ function AcceptedPanel({ name, address, distanceKm, pickupMins, status, onDone }
         <div className="rounded-2xl bg-muted/60 p-3">
           <dt className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
             <Clock className="size-3" aria-hidden="true" />
-            {status === 'completed' ? 'Pickup location' : 'Pickup ETA'}
+            {isCompleted ? 'Pickup location' : 'Pickup ETA'}
           </dt>
-          <dd className="text-lg font-bold">{status === 'completed' ? address : `${pickupMins} mins`}</dd>
+          <dd className="text-lg font-bold">{isCompleted ? address : `${pickupMins} mins`}</dd>
         </div>
       </dl>
 
       <p className="text-xs text-muted-foreground">
-        Keep the food packed and ready for the NGO pickup team following the highlighted route.
+        {isCompleted
+          ? 'Thank you for reducing food waste and supporting local hunger relief.'
+          : 'Keep the food packed and ready for the NGO pickup team following the highlighted route.'}
       </p>
 
       <button

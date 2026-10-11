@@ -11,6 +11,13 @@ type BroadcastMapProps = {
   phase: BroadcastPhase
   acceptedId: string | null
   ngos: Ngo[]
+  pickupAddress?: string
+  donorName?: string
+  donorContact?: string
+  donorNotes?: string
+  donorLat?: number
+  donorLng?: number
+  onSelectNgo?: (ngoId: string) => void
 }
 
 const VIEW = 1000
@@ -57,7 +64,12 @@ const parks = [
   { x: 870, y: 660, w: 140, h: 120 },
 ]
 
-export function BroadcastMapView({ phase, acceptedId, ngos: ngoDirectory }: BroadcastMapProps) {
+export function BroadcastMapView({
+  phase,
+  acceptedId,
+  ngos: ngoDirectory,
+  onSelectNgo,
+}: BroadcastMapProps) {
   const [zoomIndex, setZoomIndex] = useState(0)
   const zoom = ZOOM_LEVELS[zoomIndex]
 
@@ -171,6 +183,12 @@ export function BroadcastMapView({ phase, acceptedId, ngos: ngoDirectory }: Broa
               <g
                 key={ngo.id}
                 transform={`translate(${point.x} ${point.y}) scale(${scale})`}
+                onClick={() => {
+                  if (phase === 'broadcasting' && onSelectNgo) {
+                    onSelectNgo(ngo.id)
+                  }
+                }}
+                style={{ cursor: phase === 'broadcasting' && onSelectNgo ? 'pointer' : 'default' }}
                 className={cn('transition-opacity duration-300', dimmed && 'opacity-35')}
               >
                 <title>{`${ngo.name} - ${ngo.distanceKm} KM - ${ngo.status === 'available' ? 'Available' : 'Busy'}`}</title>

@@ -21,6 +21,10 @@ export interface FormattedDonationRequest {
   donorName?: string | null
   donorContact?: string | null
   donorNotes?: string | null
+  pickupOtp?: string | null
+  otpVerified?: boolean
+  completionPhoto?: string | null
+  greetingsSent?: boolean
 }
 
 export class DonationView {
@@ -48,6 +52,10 @@ export class DonationView {
     donorName?: string | null
     donorContact?: string | null
     donorNotes?: string | null
+    pickupOtp?: string | null
+    otpVerified?: boolean
+    completionPhoto?: string | null
+    greetingsSent?: boolean
     items?: { foodType: string; quantity: number; quantityUnit: string; expiresAt: Date }[]
   }): FormattedDonationRequest {
     const foodItems = request.items && request.items.length > 0
@@ -76,6 +84,10 @@ export class DonationView {
       donorName: request.donorName ?? null,
       donorContact: request.donorContact ?? null,
       donorNotes: request.donorNotes ?? null,
+      pickupOtp: request.pickupOtp ?? null,
+      otpVerified: Boolean(request.otpVerified),
+      completionPhoto: request.completionPhoto ?? null,
+      greetingsSent: Boolean(request.greetingsSent),
       foodItems,
     }
   }
