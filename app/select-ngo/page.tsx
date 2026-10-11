@@ -21,12 +21,9 @@ export default async function SelectNgoPage({
     expiresAt?: string
     lat?: string
     lng?: string
-    donorName?: string
-    donorContact?: string
-    donorNotes?: string
   }>
 }) {
-  const { pickup, region, foodType, quantity, quantityUnit, foodItems: foodItemsParam, expiresAt, lat, lng, donorName, donorContact, donorNotes } = await searchParams
+  const { pickup, region, foodType, quantity, quantityUnit, foodItems: foodItemsParam, expiresAt, lat, lng } = await searchParams
   const parsedQuantity = Number(quantity)
   let foodItems: DonationFoodItem[] = []
   try {
@@ -65,9 +62,6 @@ export default async function SelectNgoPage({
       expiresAt={expiresAt || ''}
       latitude={Number.isFinite(parsedLatitude) ? parsedLatitude : null}
       longitude={Number.isFinite(parsedLongitude) ? parsedLongitude : null}
-      donorName={donorName?.trim() || ''}
-      donorContact={donorContact?.trim() || ''}
-      donorNotes={donorNotes?.trim() || ''}
       ngos={ngos}
     />
   )

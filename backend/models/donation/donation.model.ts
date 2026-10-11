@@ -1,5 +1,10 @@
+import { randomInt } from 'node:crypto'
 import { db } from '@/backend/config/database'
 import { BROADCAST_WINDOW_MS } from '@/lib/donation'
+
+function generatePickupOtp() {
+  return randomInt(1000, 10000).toString()
+}
 
 export interface CreateDonationItemData {
   foodType: string
@@ -112,7 +117,7 @@ export class DonationModel {
 
   static async createDonation(data: CreateDonationData) {
     const { items, ...donationData } = data
-    const pickupOtp = Math.floor(1000 + Math.random() * 9000).toString()
+    const pickupOtp = generatePickupOtp()
     return db.donation.create({
       data: {
         ...donationData,
@@ -133,7 +138,7 @@ export class DonationModel {
       where: { id },
       select: { pickupOtp: true },
     })
-    const pickupOtp = existing?.pickupOtp ?? Math.floor(1000 + Math.random() * 9000).toString()
+    const pickupOtp = existing?.pickupOtp ?? generatePickupOtp()
 
     return db.donation.update({
       where: { id },
@@ -229,7 +234,7 @@ export class DonationModel {
       },
       select: { pickupOtp: true },
     })
-    const pickupOtp = existing?.pickupOtp ?? Math.floor(1000 + Math.random() * 9000).toString()
+    const pickupOtp = existing?.pickupOtp ?? generatePickupOtp()
 
     return db.donation.updateMany({
       where: {

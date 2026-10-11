@@ -57,7 +57,6 @@ export default async function TrackDonationPage({
           expiresAt={donation.expiresAt}
           broadcastStartedAt={donation.createdAt}
           ngos={ngos}
-          onClose={() => {}}
         />
       </main>
     </div>

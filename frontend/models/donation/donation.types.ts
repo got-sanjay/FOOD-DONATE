@@ -1,3 +1,11 @@
+export const PENDING_DONOR_DETAILS_KEY = 'foodrescue.pendingDonorDetails'
+
+export interface PendingDonorDetails {
+  donorName: string
+  donorContact: string
+  donorNotes: string
+}
+
 export interface DonationFoodItem {
   foodType: string
   quantity: number
@@ -39,4 +47,3 @@ export interface DonationRecord {
   donorContact?: string | null
   donorNotes?: string | null
 }
-

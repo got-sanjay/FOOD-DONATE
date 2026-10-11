@@ -13,9 +13,6 @@ interface SelectNgoViewProps {
   expiresAt: string
   latitude: number | null
   longitude: number | null
-  donorName?: string
-  donorContact?: string
-  donorNotes?: string
   ngos: Ngo[]
 }
 
@@ -29,9 +26,6 @@ export function SelectNgoView({
   expiresAt,
   latitude,
   longitude,
-  donorName,
-  donorContact,
-  donorNotes,
   ngos,
 }: SelectNgoViewProps) {
   return (
@@ -48,9 +42,6 @@ export function SelectNgoView({
           expiresAt={expiresAt}
           latitude={latitude}
           longitude={longitude}
-          donorName={donorName}
-          donorContact={donorContact}
-          donorNotes={donorNotes}
           ngos={ngos}
         />
       </main>

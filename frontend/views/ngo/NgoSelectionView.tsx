@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HeartHandshake, Radio } from 'lucide-react'
 import { BROADCAST_RADIUS_KM, type Ngo } from '@/lib/ngos'
-import type { DonationFoodItem } from '@/frontend/models/donation/donation.types'
+import { PENDING_DONOR_DETAILS_KEY, type DonationFoodItem, type PendingDonorDetails } from '@/frontend/models/donation/donation.types'
 import { RouteSummaryView } from './RouteSummaryView'
 import { NgoOptionCardView } from './NgoOptionCardView'
 import { BroadcastView } from './BroadcastView'
@@ -18,21 +18,39 @@ type NgoSelectionProps = {
   expiresAt: string
   latitude: number | null
   longitude: number | null
-  donorName?: string
-  donorContact?: string
-  donorNotes?: string
   ngos: Ngo[]
 }
 
-export function NgoSelectionView({ pickup, region, foodType, quantity, quantityUnit, foodItems, expiresAt, latitude, longitude, donorName, donorContact, donorNotes, ngos }: NgoSelectionProps) {
+export function NgoSelectionView({ pickup, region, foodType, quantity, quantityUnit, foodItems, expiresAt, latitude, longitude, ngos }: NgoSelectionProps) {
   // Do not select any NGO by default
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [donorDetails, setDonorDetails] = useState<PendingDonorDetails>({ donorName: '', donorContact: '', donorNotes: '' })
   const [broadcasting, setBroadcasting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [donationId, setDonationId] = useState('')
   const [broadcastStartedAt, setBroadcastStartedAt] = useState('')
   const [broadcastError, setBroadcastError] = useState('')
   const selected = ngos.find((ngo) => ngo.id === selectedId) ?? null
+
+  useEffect(() => {
+    try {
+      const storedDetails = sessionStorage.getItem(PENDING_DONOR_DETAILS_KEY)
+      if (!storedDetails) return
+      sessionStorage.removeItem(PENDING_DONOR_DETAILS_KEY)
+
+      const parsed: unknown = JSON.parse(storedDetails)
+      if (!parsed || typeof parsed !== 'object') throw new Error('Invalid donor details.')
+      const values = parsed as Record<string, unknown>
+      setDonorDetails({
+        donorName: typeof values.donorName === 'string' ? values.donorName : '',
+        donorContact: typeof values.donorContact === 'string' ? values.donorContact : '',
+        donorNotes: typeof values.donorNotes === 'string' ? values.donorNotes : '',
+      })
+    } catch {
+      setBroadcastError('Donor details could not be loaded. Please return to the donation form and try again.')
+    }
+  }, [])
+
   const hasDonationDetails = Boolean(
     pickup && region && foodItems.length > 0 && foodItems.every((item) => item.foodType.trim() && item.quantity > 0 && new Date(item.expiresAt).getTime() >= Date.now() + 10 * 60 * 1000) && expiresAt && new Date(expiresAt).getTime() > Date.now(),
   )
@@ -60,9 +78,9 @@ export function NgoSelectionView({ pickup, region, foodType, quantity, quantityU
           foodItems,
           expiresAt,
           selectedNgoId: targetNgoId,
-          donorName: donorName || null,
-          donorContact: donorContact || null,
-          donorNotes: donorNotes || null,
+          donorName: donorDetails.donorName || null,
+          donorContact: donorDetails.donorContact || null,
+          donorNotes: donorDetails.donorNotes || null,
         }),
       })
       const result = await response.json()
@@ -190,9 +208,9 @@ export function NgoSelectionView({ pickup, region, foodType, quantity, quantityU
           region={region}
           latitude={latitude}
           longitude={longitude}
-          donorName={donorName}
-          donorContact={donorContact}
-          donorNotes={donorNotes}
+          donorName={donorDetails.donorName}
+          donorContact={donorDetails.donorContact}
+          donorNotes={donorDetails.donorNotes}
           foodType={foodType}
           quantity={quantity}
           quantityUnit={quantityUnit}

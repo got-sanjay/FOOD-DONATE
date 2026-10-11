@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, FileText, LocateFixed, Loader2, Mail, MapPin, Phone, Plus, ShieldCheck, Trash2, User, UtensilsCrossed } from 'lucide-react'
+import { ArrowRight, FileText, LocateFixed, Loader2, MapPin, Phone, Plus, ShieldCheck, Trash2, User, UtensilsCrossed, X } from 'lucide-react'
+import { PENDING_DONOR_DETAILS_KEY } from '@/frontend/models/donation/donation.types'
 
 type Coordinates = { lat: number; lng: number } | null
 const MINIMUM_EXPIRY_BUFFER_MS = 10 * 60 * 1000
@@ -25,6 +26,7 @@ export function DonationCardView() {
   const [donorName, setDonorName] = useState('')
   const [donorContact, setDonorContact] = useState('')
   const [donorNotes, setDonorNotes] = useState('')
+  const [showDonorDetails, setShowDonorDetails] = useState(false)
   const [now, setNow] = useState<number | null>(null)
   const [locating, setLocating] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
@@ -133,6 +135,21 @@ export function DonationCardView() {
       return
     }
 
+    setShowDonorDetails(true)
+  }
+
+  function continueToNgoSelection() {
+    const expiryTimestamps = foodItems.map((item) => new Date(item.expiresAt).getTime())
+    try {
+      sessionStorage.setItem(
+        PENDING_DONOR_DETAILS_KEY,
+        JSON.stringify({ donorName, donorContact, donorNotes }),
+      )
+    } catch {
+      setFormError('Could not save donor details in this browser. Please allow session storage and try again.')
+      return
+    }
+
     const params = new URLSearchParams({
       pickup: location.trim(),
       region: region.trim(),
@@ -147,9 +164,6 @@ export function DonationCardView() {
       }))),
       expiresAt: new Date(Math.min(...expiryTimestamps)).toISOString(),
     })
-    if (donorName.trim()) params.set('donorName', donorName.trim())
-    if (donorContact.trim()) params.set('donorContact', donorContact.trim())
-    if (donorNotes.trim()) params.set('donorNotes', donorNotes.trim())
     if (coordinates) {
       params.set('lat', String(coordinates.lat))
       params.set('lng', String(coordinates.lng))
@@ -158,6 +172,7 @@ export function DonationCardView() {
   }
 
   return (
+    <>
     <form
       id="donate"
       onSubmit={submitDonation}
@@ -232,50 +247,6 @@ export function DonationCardView() {
             className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
           />
         </label>
-
-        {/* Donor Details Section */}
-        <fieldset className="flex flex-col gap-2.5 rounded-2xl border border-border bg-background/50 p-3.5">
-          <legend className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Donor Details</legend>
-          
-          <label className="flex items-center gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-2.5 transition-colors focus-within:border-foreground focus-within:bg-background">
-            <User className="size-4 shrink-0 text-brand-green" aria-hidden="true" />
-            <span className="sr-only">Your Name</span>
-            <input
-              type="text"
-              value={donorName}
-              onChange={(event) => setDonorName(event.target.value)}
-              placeholder="Your name or organization"
-              maxLength={100}
-              className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
-            />
-          </label>
-
-          <label className="flex items-center gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-2.5 transition-colors focus-within:border-foreground focus-within:bg-background">
-            <Phone className="size-4 shrink-0 text-brand-blue" aria-hidden="true" />
-            <span className="sr-only">Phone number or Email</span>
-            <input
-              type="text"
-              value={donorContact}
-              onChange={(event) => setDonorContact(event.target.value)}
-              placeholder="Mobile number or email"
-              maxLength={100}
-              className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
-            />
-          </label>
-
-          <label className="flex items-start gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-2.5 transition-colors focus-within:border-foreground focus-within:bg-background">
-            <FileText className="size-4 shrink-0 mt-0.5 text-brand-orange" aria-hidden="true" />
-            <span className="sr-only">Additional Details</span>
-            <textarea
-              value={donorNotes}
-              onChange={(event) => setDonorNotes(event.target.value)}
-              placeholder="Additional details (e.g. gate instructions)"
-              rows={2}
-              maxLength={250}
-              className="w-full resize-none bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
-            />
-          </label>
-        </fieldset>
 
         <fieldset className="flex flex-col gap-3">
           <legend className="text-sm font-bold">Food items and quantities</legend>
@@ -379,6 +350,92 @@ export function DonationCardView() {
         Your food details and each item’s expiry are shared with the selected NGO.
       </p>
     </form>
+    {showDonorDetails && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setShowDonorDetails(false)
+      }}>
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="donor-details-title"
+          className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl"
+        >
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h2 id="donor-details-title" className="text-lg font-bold">Donor details</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Optional details to help the NGO coordinate pickup.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDonorDetails(false)}
+              aria-label="Close donor details"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-3">
+              <User className="size-4 shrink-0 text-brand-green" aria-hidden="true" />
+              <span className="sr-only">Your name or organization</span>
+              <input
+                type="text"
+                value={donorName}
+                onChange={(event) => setDonorName(event.target.value)}
+                placeholder="Your name or organization (optional)"
+                maxLength={100}
+                autoComplete="name"
+                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+              />
+            </label>
+            <label className="flex items-center gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-3">
+              <Phone className="size-4 shrink-0 text-brand-blue" aria-hidden="true" />
+              <span className="sr-only">Mobile number or email</span>
+              <input
+                type="text"
+                value={donorContact}
+                onChange={(event) => setDonorContact(event.target.value)}
+                placeholder="Mobile number or email (optional)"
+                maxLength={100}
+                autoComplete="email"
+                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+              />
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-input bg-muted/60 px-3.5 py-3">
+              <FileText className="mt-0.5 size-4 shrink-0 text-brand-orange" aria-hidden="true" />
+              <span className="sr-only">Pickup instructions</span>
+              <textarea
+                value={donorNotes}
+                onChange={(event) => setDonorNotes(event.target.value)}
+                placeholder="Pickup instructions (optional)"
+                rows={2}
+                maxLength={250}
+                className="w-full resize-none bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+              />
+            </label>
+          </div>
+          {formError && <p role="alert" className="text-sm font-medium text-destructive">{formError}</p>}
+          <div className="mt-5 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowDonorDetails(false)}
+              className="flex-1 rounded-xl border border-border px-4 py-3 text-sm font-bold hover:bg-muted"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={continueToNgoSelection}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFC107] px-4 py-3 text-sm font-bold text-black hover:brightness-95"
+            >
+              Find Nearby NGOs
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
+    </>
   )
 }
 

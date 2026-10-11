@@ -1,6 +1,9 @@
 'use client'
 
+'use client'
+
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
   ArrowLeft,
@@ -62,7 +65,7 @@ type BroadcastViewProps = {
   expiresAt: string
   broadcastStartedAt: string
   ngos: Ngo[]
-  onClose: () => void
+  onClose?: () => void
 }
 
 export function BroadcastView({
@@ -83,6 +86,8 @@ export function BroadcastView({
   ngos,
   onClose,
 }: BroadcastViewProps) {
+  const router = useRouter()
+  const handleClose = onClose ?? (() => router.push('/'))
   const [phase, setPhase] = useState<BroadcastPhase>('broadcasting')
   const [deadline, setDeadline] = useState(() => broadcastDeadline(initialBroadcastStartedAt))
   const [now, setNow] = useState(() => Date.now())
@@ -198,12 +203,12 @@ export function BroadcastView({
   }
 
   async function cancelBroadcast() {
-    if (await saveStatus('cancelled')) onClose()
+    if (await saveStatus('cancelled')) handleClose()
   }
 
   async function closeBroadcast() {
     if (phase === 'broadcasting') await cancelBroadcast()
-    else onClose()
+    else handleClose()
   }
 
   function fastForwardToExpiry() {
@@ -348,7 +353,7 @@ export function BroadcastView({
               completionPhoto={completionPhoto}
               donorName={donorName}
               pickupAddress={pickup}
-              onDone={onClose}
+              onDone={handleClose}
             />
           ) : (
             <BroadcastingPanel
@@ -362,7 +367,7 @@ export function BroadcastView({
           )}
         </section>
 
-        {phase === 'expired' && <ExpiredModal onRetry={retryBroadcast} onClose={onClose} />}
+        {phase === 'expired' && <ExpiredModal onRetry={retryBroadcast} onClose={handleClose} />}
       </div>
     </div>
   )
