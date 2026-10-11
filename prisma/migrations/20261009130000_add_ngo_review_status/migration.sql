@@ -1,0 +1,1 @@
+ALTER TABLE "NgoAccount" ADD COLUMN "reviewStatus" TEXT NOT NULL DEFAULT 'approved';

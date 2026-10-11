@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Donation {
+  id            String              @id @default(cuid())
+  pickupAddress String
+  latitude      Float?
+  longitude     Float?
+  foodType      String
+  quantity      Float
+  quantityUnit  String
+  expiresAt     DateTime
+  status        String              @default("broadcasting")
+  selectedNgoId String?
+  region        String              @default("Unassigned")
+  donorName     String?
+  donorContact  String?
+  donorNotes    String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  declines      NgoRequestDecline[]
+  items         DonationItem[]
+
+  @@index([status, createdAt])
+}
+
+model DonationItem {
+  id           String   @id @default(cuid())
+  donationId   String
+  foodType     String
+  quantity     Float
+  quantityUnit String
+  expiresAt    DateTime
+  donation     Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  @@index([donationId])
+}
+
+model NgoAccount {
+  id           String              @id @default(cuid())
+  name         String
+  nameKey      String              @unique
+  passwordHash String
+  region       String              @default("Unassigned")
+  isActive     Boolean             @default(true)
+  availability String              @default("available")
+  reviewStatus String              @default("approved")
+  phone        String?
+  email        String?
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  rating       Float               @default(4.9)
+  completedCount Int               @default(0)
+  additionalNotes String?
+  createdAt    DateTime            @default(now())
+  declines     NgoRequestDecline[]
+}
+
+model NgoRequestDecline {
+  id         String     @id @default(cuid())
+  donationId String
+  ngoId      String
+  createdAt  DateTime   @default(now())
+  donation   Donation   @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  ngo        NgoAccount @relation(fields: [ngoId], references: [id], onDelete: Cascade)
+
+  @@unique([donationId, ngoId])
+  @@index([ngoId, createdAt])
+}
