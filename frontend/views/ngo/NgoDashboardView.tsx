@@ -159,7 +159,7 @@ function playNotificationSound() {
         // First load with existing requests
         const newest = nextRequests[0]
         const itemsText = newest.foodItems.map((item) => `${item.foodType}, ${item.quantity} ${item.quantityUnit}`).join('; ')
-        setNotice(`🔔 ${nextRequests.length} active donor broadcast waiting: ${itemsText} at ${newest.pickupAddress}.`)
+        setNotice(`${nextRequests.length} active donor broadcasts waiting: ${itemsText} at ${newest.pickupAddress}.`)
         playNotificationSound()
       }
 
@@ -287,8 +287,8 @@ function playNotificationSound() {
       )
       setAcceptedMessage(
         status === 'completed'
-          ? `🎉 Food rescue completed! Thank-you greeting confirmed for ${request.donorName || 'donor'}.`
-          : `✓ OTP Verified! ${request.foodType} pickup is now in progress.`,
+          ? `Food rescue completed. Thank-you greeting confirmed for ${request.donorName || 'donor'}.`
+          : `OTP verified. ${request.foodType} pickup is now in progress.`,
       )
       return true
     } catch (statusError) {

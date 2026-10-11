@@ -35,6 +35,18 @@ const statusLabels: Record<string, string> = {
   broadcasting: 'Open', accepted: 'Accepted', in_progress: 'In progress', completed: 'Completed', expired: 'Expired', cancelled: 'Cancelled',
 }
 
+function regionKey(region: string) {
+  return region.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en')
+}
+
+function regionLabel(region: string) {
+  return region
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('en')
+    .replace(/(^|[\s-])\p{L}/gu, (character) => character.toLocaleUpperCase('en'))
+}
+
 function statusStyle(status: string) {
   if (status === 'completed') return 'bg-brand-green/10 text-brand-green'
   if (status === 'in_progress' || status === 'accepted') return 'bg-brand-blue/10 text-brand-blue'
@@ -79,25 +91,34 @@ export function AdminDashboardView({ username }: { username: string }) {
 
   useEffect(() => { void loadData() }, [loadData])
 
-  const regions = useMemo(() => Array.from(new Set([
-    ...data.summary.map((item) => item.region),
-    ...data.ngos.map((item) => item.region),
-  ])).filter(Boolean).sort((a, b) => a.localeCompare(b)), [data])
+  const regions = useMemo(() => {
+    const uniqueRegions = new Map<string, string>()
+    for (const region of [...data.summary.map((item) => item.region), ...data.ngos.map((item) => item.region)]) {
+      const key = regionKey(region)
+      if (key && !uniqueRegions.has(key)) uniqueRegions.set(key, regionLabel(region))
+    }
+    return Array.from(uniqueRegions.values()).sort((a, b) => a.localeCompare(b))
+  }, [data])
   const filteredDonations = useMemo(() => data.donations.filter((item) =>
-    (regionFilter === 'All regions' || item.region === regionFilter) &&
+    (regionFilter === 'All regions' || regionKey(item.region) === regionKey(regionFilter)) &&
     (statusFilter === 'All statuses' || item.status === statusFilter),
   ), [data.donations, regionFilter, statusFilter])
-  const regionalStats = useMemo(() => regions.map((region) => {
-    const requests = data.summary.filter((item) => item.region === region)
-    const count = (statuses: string[]) => requests.filter((item) => statuses.includes(item.status)).reduce((total, item) => total + item.count, 0)
-    return {
-      region,
-      total: requests.reduce((total, item) => total + item.count, 0),
-      open: count(['broadcasting']),
-      active: count(['accepted', 'in_progress']),
-      completed: count(['completed']),
+  const regionalStats = useMemo(() => {
+    const statsByRegion = new Map<string, { region: string; total: number; open: number; active: number; completed: number }>()
+    for (const region of regions) {
+      statsByRegion.set(regionKey(region), { region, total: 0, open: 0, active: 0, completed: 0 })
     }
-  }), [data.summary, regions])
+    for (const item of data.summary) {
+      const key = regionKey(item.region)
+      const stats = statsByRegion.get(key)
+      if (!stats) continue
+      stats.total += item.count
+      if (item.status === 'broadcasting') stats.open += item.count
+      if (item.status === 'accepted' || item.status === 'in_progress') stats.active += item.count
+      if (item.status === 'completed') stats.completed += item.count
+    }
+    return Array.from(statsByRegion.values())
+  }, [data.summary, regions])
   const counts = useMemo(() => ({
     requests: data.summary.reduce((total, item) => total + item.count, 0),
     open: data.summary.filter((item) => item.status === 'broadcasting').reduce((total, item) => total + item.count, 0),
