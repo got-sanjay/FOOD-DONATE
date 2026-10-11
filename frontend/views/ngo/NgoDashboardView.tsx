@@ -7,6 +7,8 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Edit3,
+  HeartHandshake,
   Image as ImageIcon,
   KeyRound,
   Mail,
@@ -78,6 +80,7 @@ export function NgoDashboardView({
 
   // Complete Delivery & Greetings Modal
   const [completeModalRequest, setCompleteModalRequest] = useState<AssignedRequest | null>(null)
+  const [customGreeting, setCustomGreeting] = useState('')
   const [selectedPhoto, setSelectedPhoto] = useState(
     'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&auto=format&fit=crop&q=80',
   )
@@ -126,7 +129,7 @@ function playNotificationSound() {
 
       // Update browser tab title to alert NGO
       if (nextRequests.length > 0) {
-        document.title = `(${nextRequests.length}) 🔔 New Donor Request - FoodRescue`
+        document.title = `(${nextRequests.length}) New Donor Request - FoodRescue`
       } else {
         document.title = 'NGO Dashboard · FoodRescue'
       }
@@ -136,13 +139,13 @@ function playNotificationSound() {
         if (newlyAvailable.length > 0) {
           const newest = newlyAvailable[0]
           const itemsText = newest.foodItems.map((item) => `${item.foodType}, ${item.quantity} ${item.quantityUnit}, use by ${formatExpiry(item.expiresAt)}`).join('; ')
-          const message = `🔔 New donation request: ${itemsText} at ${newest.pickupAddress}. Expected expiry: ${formatExpiry(newest.expiresAt)}.`
+          const message = `New donation request: ${itemsText} at ${newest.pickupAddress}. Expected expiry: ${formatExpiry(newest.expiresAt)}.`
           setNotice(message)
           playNotificationSound()
 
           if ('Notification' in window && Notification.permission === 'granted') {
             try {
-              new Notification('🔔 New FoodRescue Donor Request!', {
+              new Notification('New FoodRescue Donor Request!', {
                 body: `${itemsText} · ${newest.pickupAddress}`,
                 icon: '/favicon.ico',
                 tag: newest.id,
@@ -751,14 +754,27 @@ function playNotificationSound() {
                 </div>
               </div>
 
-              {/* GREETING PREVIEW */}
-              <div className="rounded-2xl border border-brand-green/30 bg-brand-green/5 p-4 text-xs">
-                <p className="font-extrabold uppercase tracking-wider text-brand-green text-[10px]">
-                  Donor Greeting Message Preview
-                </p>
-                <p className="mt-1.5 text-foreground leading-relaxed">
-                  &ldquo;🌟 <strong>Dear {completeModalRequest.donorName || 'Generous Donor'}</strong>, thank you! Your surplus food donation of {completeModalRequest.foodType} ({completeModalRequest.quantity} {completeModalRequest.quantityUnit}) was safely collected from {completeModalRequest.pickupAddress} and distributed by <strong>{ngoName}</strong> to families in need! 💚&rdquo;
-                </p>
+              {/* EDITABLE GREETING MESSAGE */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="custom-greeting-textarea" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <Edit3 className="size-3.5 text-brand-green" />
+                    <span>Customize Donor Greeting Message</span>
+                  </label>
+                  <span className="text-[11px] font-semibold text-brand-green">Editable</span>
+                </div>
+                <textarea
+                  id="custom-greeting-textarea"
+                  value={
+                    customGreeting !== ''
+                      ? customGreeting
+                      : `Dear ${completeModalRequest.donorName || 'Generous Donor'}, thank you for supporting hunger relief! Your surplus food donation of ${completeModalRequest.foodType} (${completeModalRequest.quantity} ${completeModalRequest.quantityUnit}) was safely collected from ${completeModalRequest.pickupAddress} and distributed by ${ngoName} to families in need. Together we eliminated food waste and fed the community!`
+                  }
+                  onChange={(e) => setCustomGreeting(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-border bg-background p-3 text-xs leading-relaxed text-foreground shadow-xs focus:border-brand-green focus:outline-none focus:ring-2 focus:ring-brand-green/30"
+                  placeholder="Customize the greeting message sent to the donor..."
+                />
               </div>
 
               {/* ACTION LINKS: WHATSAPP & EMAIL */}
@@ -767,11 +783,14 @@ function playNotificationSound() {
                   href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(
                     (completeModalRequest.donorContact || '').replace(/[^0-9+]/g, '')
                   )}&text=${encodeURIComponent(
-                    `🌟 *Thank You For Your Food Donation!* 🍽️\n\nDear ${
-                      completeModalRequest.donorName || 'Donor'
-                    },\nYour surplus food donation (${completeModalRequest.foodType}, ${
-                      completeModalRequest.quantity
-                    } ${completeModalRequest.quantityUnit}) has been safely collected and distributed by *${ngoName}* to families in need!\n\n📸 Photo Proof: ${selectedPhoto}\n\nTogether we saved food and fed hungry people. Thank you for making a difference! 💚`
+                    `*Thank You For Your Food Donation!* \n\n${
+                      customGreeting ||
+                      `Dear ${
+                        completeModalRequest.donorName || 'Donor'
+                      },\nYour surplus food donation (${completeModalRequest.foodType}, ${
+                        completeModalRequest.quantity
+                      } ${completeModalRequest.quantityUnit}) has been safely collected and distributed by *${ngoName}* to families in need!`
+                    }\n\nPhoto Proof: ${selectedPhoto}\n\nTogether we saved food and fed people in need.`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -784,11 +803,14 @@ function playNotificationSound() {
                 {completeModalRequest.donorContact?.includes('@') && (
                   <a
                     href={`mailto:${completeModalRequest.donorContact}?subject=${encodeURIComponent(
-                      `Food Donation Delivered! Thank You from ${ngoName}`
+                      `Food Donation Delivered - Thank You from ${ngoName}`
                     )}&body=${encodeURIComponent(
-                      `Dear ${completeModalRequest.donorName || 'Donor'},\n\nYour donation of ${
-                        completeModalRequest.foodType
-                      } has been safely picked up and distributed by ${ngoName}!\n\nView photo: ${selectedPhoto}\n\nThank you for your generosity!`
+                      `${
+                        customGreeting ||
+                        `Dear ${completeModalRequest.donorName || 'Donor'},\n\nYour donation of ${
+                          completeModalRequest.foodType
+                        } has been safely picked up and distributed by ${ngoName}!`
+                      }\n\nView photo: ${selectedPhoto}\n\nThank you for your generosity!`
                     )}`}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-4 py-3 text-xs font-bold text-foreground hover:bg-muted transition-colors"
                   >

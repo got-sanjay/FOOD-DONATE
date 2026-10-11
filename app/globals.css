@@ -127,21 +127,99 @@
 .fr-radar-ring {
   transform-box: fill-box;
   transform-origin: center;
-  transform: scale(0.05);
+  transform: scale(0);
   opacity: 0;
   pointer-events: none;
-  animation: fr-radar 2.7s ease-out infinite;
+  animation: radarRing 8s ease-out infinite;
 }
 
-@keyframes fr-radar {
-  0% {
-    transform: scale(0.05);
-    opacity: 0.8;
+.fr-radar-ring--outer {
+  animation-delay: 2.67s;
+}
+
+@keyframes radarRing {
+  from {
+    transform: scale(0);
+    opacity: 1;
   }
-  100% {
+  to {
     transform: scale(1);
     opacity: 0;
   }
+}
+
+/* Leaflet Radar Scanner Overlay Styles */
+.leaflet-tooltip.ngo-map-tooltip {
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #0f172a;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.18);
+}
+
+.leaflet-tooltip.ngo-map-tooltip::before {
+  border-top-color: rgba(255, 255, 255, 0.97);
+}
+
+.ngo-map-tooltip-content {
+  display: flex;
+  min-width: 120px;
+  max-width: 190px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  font: 11px/1.3 system-ui, sans-serif;
+}
+
+.ngo-map-tooltip-content strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.ngo-map-tooltip-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.ngo-map-status {
+  border-radius: 999px;
+  padding: 2px 5px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ngo-map-status--available {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ngo-map-status--busy {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.ngo-map-status--matched {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.leaflet-radar-container {
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  position: relative;
+  overflow: visible;
+}
+
+.broadcast-wave-scene {
+  position: absolute;
+  inset: 0;
 }
 
 .fr-route-draw {
@@ -159,8 +237,8 @@
 @media (prefers-reduced-motion: reduce) {
   .fr-radar-ring {
     animation: none;
-    opacity: 0.2;
-    transform: scale(0.6);
+    opacity: 0.4;
+    transform: scale(1);
   }
   .fr-route-draw {
     animation: none;

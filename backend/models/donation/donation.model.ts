@@ -48,6 +48,15 @@ export class DonationModel {
     const donation = await db.donation.findUnique({
       where: { id },
       select: {
+        id: true,
+        pickupAddress: true,
+        region: true,
+        latitude: true,
+        longitude: true,
+        foodType: true,
+        quantity: true,
+        quantityUnit: true,
+        expiresAt: true,
         status: true,
         selectedNgoId: true,
         pickupOtp: true,
@@ -57,6 +66,9 @@ export class DonationModel {
         donorName: true,
         donorContact: true,
         donorNotes: true,
+        createdAt: true,
+        updatedAt: true,
+        items: true,
       },
     })
     if (!donation) return null
@@ -64,15 +76,30 @@ export class DonationModel {
     const selectedNgo = donation.selectedNgoId
       ? await db.ngoAccount.findUnique({
           where: { id: donation.selectedNgoId },
-          select: { name: true, phone: true, email: true },
+          select: { name: true, phone: true, email: true, address: true, rating: true, completedCount: true },
         })
       : null
 
     return {
+      id: donation.id,
+      pickupAddress: donation.pickupAddress,
+      region: donation.region,
+      latitude: donation.latitude,
+      longitude: donation.longitude,
+      foodType: donation.foodType,
+      quantity: donation.quantity,
+      quantityUnit: donation.quantityUnit,
+      expiresAt: donation.expiresAt.toISOString(),
+      items: donation.items,
+      createdAt: donation.createdAt.toISOString(),
+      updatedAt: donation.updatedAt.toISOString(),
       status: donation.status,
       selectedNgoName: selectedNgo?.name ?? null,
       selectedNgoPhone: selectedNgo?.phone ?? null,
       selectedNgoEmail: selectedNgo?.email ?? null,
+      selectedNgoAddress: selectedNgo?.address ?? null,
+      selectedNgoRating: selectedNgo?.rating ?? null,
+      selectedNgoCompletedCount: selectedNgo?.completedCount ?? null,
       pickupOtp: donation.pickupOtp,
       otpVerified: donation.otpVerified,
       completionPhoto: donation.completionPhoto,

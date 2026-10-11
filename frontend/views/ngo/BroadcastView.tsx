@@ -217,6 +217,15 @@ export function BroadcastView({
         ? `${phase === 'completed' ? 'Pickup completed' : phase === 'in_progress' ? 'Pickup in progress' : 'Accepted'} by ${acceptedNgoName ?? accepted.name}.`
         : 'Request auto-cancelled after the 60-minute pickup window.'
 
+  const [copiedTrackId, setCopiedTrackId] = useState(false)
+  const handleCopyTrackId = () => {
+    if (donationId) {
+      void navigator.clipboard.writeText(donationId)
+      setCopiedTrackId(true)
+      setTimeout(() => setCopiedTrackId(false), 2000)
+    }
+  }
+
   return (
     <div
       role="dialog"
@@ -233,9 +242,25 @@ export function BroadcastView({
           <ArrowLeft className="size-4" aria-hidden="true" />
           <span>Back</span>
         </button>
-        <p id="broadcast-title" className="text-sm font-bold md:text-base">
-          Live NGO Broadcast
-        </p>
+
+        <div className="flex items-center gap-2.5">
+          <p id="broadcast-title" className="text-sm font-bold md:text-base">
+            Live NGO Broadcast
+          </p>
+          {donationId && (
+            <button
+              type="button"
+              onClick={handleCopyTrackId}
+              title="Click to copy Track ID"
+              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2 py-1 text-xs font-mono font-bold text-foreground hover:bg-muted transition-colors"
+            >
+              <span className="text-muted-foreground font-sans font-medium text-[11px]">Track ID:</span>
+              <span>{donationId.slice(0, 10)}...</span>
+              {copiedTrackId ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3 text-muted-foreground" />}
+            </button>
+          )}
+        </div>
+
         <span className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-bold">
           <span
             aria-hidden="true"
@@ -273,6 +298,24 @@ export function BroadcastView({
           <p role="status" aria-live="polite" className="sr-only">
             {statusMessage}
           </p>
+
+          {/* TRACK ID BADGE FOR DONOR */}
+          {donationId && (
+            <div className="mb-3 flex items-center justify-between rounded-xl border border-border/80 bg-muted/40 px-3 py-2 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Track ID:</span>
+                <span className="font-mono font-bold text-foreground truncate">{donationId}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyTrackId}
+                className="flex items-center gap-1 shrink-0 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-bold text-foreground hover:bg-muted transition-colors"
+              >
+                {copiedTrackId ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                <span>{copiedTrackId ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          )}
 
           <div className="mb-4 flex items-start gap-3 rounded-2xl bg-muted/60 p-3">
             <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-green/15">
@@ -510,20 +553,22 @@ function AcceptedPanel({
           {completionPhoto ? (
             <div className="mt-3 overflow-hidden rounded-xl border border-border shadow-sm">
               <img src={completionPhoto} alt="Distribution proof" className="h-44 w-full object-cover" />
-              <div className="bg-background/95 px-3 py-1.5 text-center text-[11px] font-semibold text-brand-green">
-                📸 Verified Distribution Photo Proof
+              <div className="bg-background/95 px-3 py-1.5 text-center text-[11px] font-semibold text-brand-green flex items-center justify-center gap-1.5">
+                <BadgeCheck className="size-3.5 text-brand-green" />
+                <span>Verified Distribution Photo Proof</span>
               </div>
             </div>
           ) : (
-            <div className="mt-3 rounded-xl border border-dashed border-brand-green/40 bg-brand-green/5 p-3 text-center text-xs text-brand-green font-medium">
-              💚 Food delivery verified! Greetings sent to donor with distribution confirmation.
+            <div className="mt-3 rounded-xl border border-dashed border-brand-green/40 bg-brand-green/5 p-3 text-center text-xs text-brand-green font-medium flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="size-3.5 text-brand-green" />
+              <span>Food delivery verified! Greetings sent to donor with distribution confirmation.</span>
             </div>
           )}
 
           <div className="mt-3.5 flex gap-2">
             <a
               href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                `🌟 Our surplus food donation was safely collected and distributed by ${name}! Together we saved food and fed people in need with FoodRescue. 💚`
+                `Our surplus food donation was safely collected and distributed by ${name}! Together we saved food and fed people in need with FoodRescue.`
               )}`}
               target="_blank"
               rel="noopener noreferrer"

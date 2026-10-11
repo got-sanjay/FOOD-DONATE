@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { HelpChatbotView } from '@/frontend/views/ai/HelpChatbotView'
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 

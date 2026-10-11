@@ -4,6 +4,7 @@ import { getAuthenticatedAdmin } from '@/lib/admin-auth'
 import { getAuthenticatedNgo } from '@/lib/ngo-auth'
 import { AdminSessionControlView } from '@/frontend/views/admin/AdminSessionControlView'
 import { NgoSessionControlView } from '@/frontend/views/ngo/NgoSessionControlView'
+import { HeaderTrackSearch } from '@/frontend/views/shared/HeaderTrackSearch'
 
 const navLinks: { label: string; href: string }[] = []
 
@@ -21,15 +22,20 @@ export async function SiteHeaderView({
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 md:px-8">
-        <Link href="/" className="flex items-center gap-2" aria-label="FoodRescue home">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary">
-            <Leaf className="size-5 text-foreground" aria-hidden="true" />
-          </span>
-          <span className="text-xl font-extrabold tracking-tight">
-            Food<span className="text-primary">Rescue</span>
-          </span>
-        </Link>
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 md:px-8">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <Link href="/" className="flex items-center gap-2" aria-label="FoodRescue home">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary">
+              <Leaf className="size-5 text-foreground" aria-hidden="true" />
+            </span>
+            <span className="text-xl font-extrabold tracking-tight">
+              Food<span className="text-primary">Rescue</span>
+            </span>
+          </Link>
+
+          {/* Home Top Header Search Bar for Track ID */}
+          <HeaderTrackSearch />
+        </div>
 
         {showNavigation && navLinks.length > 0 && (
           <nav aria-label="Main" className="hidden md:block">
